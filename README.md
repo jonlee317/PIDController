@@ -3,82 +3,43 @@ Self-Driving Car Engineer Nanodegree Program
 
 ---
 
-## Dependencies
+## Purpose
 
-* cmake >= 3.5
- * All OSes: [click here for installation instructions](https://cmake.org/install/)
-* make >= 4.1
-  * Linux: make is installed by default on most Linux distros
-  * Mac: [install Xcode command line tools to get make](https://developer.apple.com/xcode/features/)
-  * Windows: [Click here for installation instructions](http://gnuwin32.sourceforge.net/packages/make.htm)
-* gcc/g++ >= 5.4
-  * Linux: gcc / g++ is installed by default on most Linux distros
-  * Mac: same deal as make - [install Xcode command line tools]((https://developer.apple.com/xcode/features/)
-  * Windows: recommend using [MinGW](http://www.mingw.org/)
-* [uWebSockets](https://github.com/uWebSockets/uWebSockets) == 0.13, but the master branch will probably work just fine
-  * Follow the instructions in the [uWebSockets README](https://github.com/uWebSockets/uWebSockets/blob/master/README.md) to get setup for your platform. You can download the zip of the appropriate version from the [releases page](https://github.com/uWebSockets/uWebSockets/releases). Here's a link to the [v0.13 zip](https://github.com/uWebSockets/uWebSockets/archive/v0.13.0.zip).
-  * If you run OSX and have homebrew installed you can just run the ./install-mac.sh script to install this
-* Simulator. You can download these from the [project intro page](https://github.com/udacity/CarND-PID-Control-Project/releases) in the classroom.
+The purpose of this project was to get a feel on the physics of how to tune a PID controller while also gaining experience with implementing a PID controller in C++ code.
 
-## Basic Build Instructions
+## Strategy
 
-1. Clone this repo.
-2. Make a build directory: `mkdir build && cd build`
-3. Compile: `cmake .. && make`
-4. Run it: `./pid`. 
+Initially, I tried to implement twiddle but my twiddle methodology needs fixing since I am only able to tune only two values such as P and D.  And even then the values are not tuned properly.  For example, using this strategy it sets both P and D to values such as 15+ which is way too large for this system.  However, the car is able to stay on track the whole time except it just oscillates at a very high frequency while traveling very slowly.  But this is definitely not an ideal ride for humans!
 
-## Editor Settings
+This is when I decided to just do manual tuning.   First I also did a bit of research.  I referred to the following website for some strategies:
 
-We've purposefully kept editor configuration files out of this repo in order to
-keep it as simple and environment agnostic as possible. However, we recommend
-using the following settings:
+https://robotics.stackexchange.com/questions/167/what-are-good-strategies-for-tuning-pid-loops
 
-* indent using spaces
-* set tab width to 2 spaces (keeps the matrices in source code aligned)
+Here was some good advice I found from the above website.  I will paste it below:
 
-## Code Style
+To tune a PID use the following steps:
 
-Please (do your best to) stick to [Google's C++ style guide](https://google.github.io/styleguide/cppguide.html).
+1) Set all gains to zero.
+2) Increase the P gain until the response to a disturbance is steady oscillation.
+3) Increase the D gain until the the oscillations go away (i.e. it's critically damped).
+4) Repeat steps 2 and 3 until increasing the D gain does not stop the oscillations.
+5) Set P and D to the last stable values.
+6) Increase the I gain until it brings you to the setpoint with the number of oscillations desired (normally zero but a quicker response can be had if you don't mind a couple oscillations of overshoot)
 
-## Project Instructions and Rubric
+Taking the above strategy into consideration, first I initialized everything to zero and increased the P until I had some small oscillations.  This took some trial and error.  I started in the 0.01 range and increased slowly to maybe about 0.04.  The car would drive fine, but then I noticed that oscillations got larger and larger.  This meant we need to increase the D term!
 
-Note: regardless of the changes you make, your project must be buildable using
-cmake and make!
+Therefore, I increased the D term to dampen the oscillations and this seemed to work well but it was not complete.  This brought me to a point where where the car would just kind touch the edges but still stay on the road because it was using the walls. So, I just tried to increase the I a very tiny value such as 0.001.  This improved a lot but was not enough!   So, then I decided to increase the P value to give it more steering strength on the turns to get keep it from hitting the rails.  But then I thought maybe there might be still be some cumulative bias that needed to be corrected so at this point I doubled the 'I term' to 0.002.  Now it looks like the vehicle passes and I have now decided to just do a submission to see how does it look.
 
-More information is only accessible by people who are already enrolled in Term 2
-of CarND. If you are enrolled, see [the project page](https://classroom.udacity.com/nanodegrees/nd013/parts/40f38239-66b6-46ec-ae68-03afd8a601c8/modules/f1820894-8322-4bb3-81aa-b26b3c6dcbaf/lessons/e8235395-22dd-4b87-88e0-d108c5e5bbf4/concepts/6a4d8d42-6a04-4aa6-b284-1697c0fd6562)
-for instructions and the project rubric.
+## Reflections
 
-## Hints!
+The effects of P, I, D are expected.   When I only have the P parameter I see the car oscillate and the oscillations start small and increase especially near the point where the vehicle turns.  The D term helps counter-steer to prevent these huge oscillations as expected.  And the I term eliminates the long-term bias.  Basically, the P term is the present state.  The I term covers the past states.  The D term covers the future states.
 
-* You don't have to follow this directory structure, but if you do, your work
-  will span all of the .cpp files here. Keep an eye out for TODOs.
+From wikipedia there was a great animated gif that basically described my process.  It also provides a very cool visual as what you are doing while tuning the parameters.  My strategy was to tune, P and D before I.  But in the gif below it first shows the tuning of P, then I and finally D:
 
-## Call for IDE Profiles Pull Requests
+https://en.wikipedia.org/wiki/File:PID_Compensation_Animated.gif
 
-Help your fellow students!
+As a reminder in case the reader stepped away and had a twinkle while doing twiddle.  Refer to the strategy section above to see how I tuned the parameters.
 
-We decided to create Makefiles with cmake to keep this project as platform
-agnostic as possible. Similarly, we omitted IDE profiles in order to we ensure
-that students don't feel pressured to use one IDE or another.
+## Future work
 
-However! I'd love to help people get up and running with their IDEs of choice.
-If you've created a profile for an IDE that you think other students would
-appreciate, we'd love to have you add the requisite profile files and
-instructions to ide_profiles/. For example if you wanted to add a VS Code
-profile, you'd add:
-
-* /ide_profiles/vscode/.vscode
-* /ide_profiles/vscode/README.md
-
-The README should explain what the profile does, how to take advantage of it,
-and how to install it.
-
-Frankly, I've never been involved in a project with multiple IDE profiles
-before. I believe the best way to handle this would be to keep them out of the
-repo root to avoid clutter. My expectation is that most profiles will include
-instructions to copy files to a new location to get picked up by the IDE, but
-that's just a guess.
-
-One last note here: regardless of the IDE used, every submitted project must
-still be compilable with cmake and make./
+I want to get twiddle fully implemented so that manual tuning does not have to take place.  I have my skeleton code in place and commented out which I will keep there as a possible exploration strategy.  Although I do believe it was a great exercise to do the manual tuning because this helps provide the practitioner with better intuition.

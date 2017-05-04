@@ -1,11 +1,14 @@
 #include <uWS/uWS.h>
 #include <iostream>
+#include <vector>
 #include "json.hpp"
 #include "PID.h"
 #include <math.h>
 
 // for convenience
 using json = nlohmann::json;
+
+using namespace std;
 
 // For converting back and forth between radians and degrees.
 constexpr double pi() { return M_PI; }
@@ -28,12 +31,25 @@ std::string hasData(std::string s) {
   return "";
 }
 
+void setMyParam(PID pidx, int idx, double pd_input) {
+  if (idx == 0) {
+    pidx.Kp_ = pd_input;
+  } else if (idx == 1) {
+    pidx.Ki_ = pd_input;
+  } else {
+    pidx.Kd_ = pd_input;
+  }
+}
+
 int main()
 {
   uWS::Hub h;
 
   PID pid;
   // TODO: Initialize the pid variable.
+
+  // The below initialization values were found manually by trial and error
+  pid.Init(0.07,0.002,2);
 
   h.onMessage([&pid](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
@@ -47,6 +63,7 @@ int main()
         std::string event = j[0].get<std::string>();
         if (event == "telemetry") {
           // j[1] is the data JSON object
+          std::cout << endl << endl << " ------------------ start new ------------------" << endl << std::endl;
           double cte = std::stod(j[1]["cte"].get<std::string>());
           double speed = std::stod(j[1]["speed"].get<std::string>());
           double angle = std::stod(j[1]["steering_angle"].get<std::string>());
@@ -57,9 +74,168 @@ int main()
           * NOTE: Feel free to play around with the throttle and speed. Maybe use
           * another PID controller to control the speed!
           */
-          
+          std::cout << pid.prev_cte << "prev" << std::endl;
+          std::cout << cte << "after" << std::endl;
+          std::cout << pid.Kp_ << " p val" << std::endl;
+          std::cout << pid.Ki_ << " i val" << std::endl;
+          std::cout << pid.Kd_ << " d val" << std::endl;
+          std::cout << pid.p_error << " p error" << std::endl;
+          std::cout << pid.i_error << " i error" << std::endl;
+          std::cout << pid.d_error << " d error" << std::endl;
+
+          pid.UpdateError(cte);
+          double current_error = cte*cte;
+          cout << pid.best_error << " this is best error" << endl;
+          cout << current_error << " this is correct error" << endl;
+          cout << pid.p_param_error_high << " this is pid  error high flag" << endl;
+          double sumDp = pid.dp[0] + pid.dp[1] + pid.dp[2];
+          cout << pid.dp[0] << endl;
+          cout << pid.dp[1] << endl;
+          cout << pid.dp[2] << endl;
+
+          /*  this is my twiddle experiment which needs to be explored further
+          double threshold =0.000001;
+
+          if (pid.train_p_param) {
+            if (sumDp > threshold) {
+              if (pid.p_param_error_high) {
+                pid.Kp_ += pid.dp[0];
+              }
+              if (current_error < pid.best_error && !pid.p_param_error_high) {
+                pid.best_error = current_error;
+                pid.dp[0] *= 1.1;
+                pid.p_param_error_high = true;
+                pid.train_p_param = false;
+                pid.train_i_param = true;
+              } else if (current_error >= pid.best_error && !pid.p_param_error_high) {
+                pid.Kp_ += pid.dp[0];
+                pid.dp[0] *= 0.9;
+                pid.p_param_error_high = true;
+                pid.train_p_param = false;
+                pid.train_i_param = true;
+              } else if (current_error < pid.best_error && pid.p_param_error_high) {
+                pid.best_error = current_error;
+                pid.dp[0] *= 1.1;
+                pid.train_p_param = false;
+                pid.train_i_param = true;
+              } else if (current_error >= pid.best_error && pid.p_param_error_high){
+                pid.Kp_ -= 2*pid.dp[0];
+                pid.p_param_error_high = false;
+              }
+            }
+          }else if (pid.train_i_param) {
+            if (sumDp > threshold) {
+              if (pid.i_param_error_high) {
+                pid.Ki_ += pid.dp[1];
+              }
+              if (current_error < pid.best_error && !pid.i_param_error_high) {
+                pid.best_error = current_error;
+                pid.dp[1] *= 1.1;
+                pid.i_param_error_high = true;
+                pid.train_i_param = false;
+                pid.train_d_param = true;
+              } else if (current_error >= pid.best_error && !pid.i_param_error_high) {
+                pid.Ki_ += pid.dp[1];
+                pid.dp[1] *= 0.9;
+                pid.i_param_error_high = true;
+                pid.train_i_param = false;
+                pid.train_d_param = true;
+              } else if (current_error < pid.best_error && pid.i_param_error_high) {
+                pid.best_error = current_error;
+                pid.dp[1] *= 1.1;
+                pid.train_i_param = false;
+                pid.train_d_param = true;
+              } else if (current_error >= pid.best_error && pid.i_param_error_high){
+                pid.Ki_ -= 2*pid.dp[1];
+                cout << "am i stuck here" << endl;
+                pid.i_param_error_high = false;
+              }
+            }
+          }else if (pid.train_d_param) {
+            if (sumDp > threshold) {
+              if (pid.d_param_error_high) {
+                pid.Kd_ += pid.dp[2];
+              }
+              if (current_error < pid.best_error && !pid.d_param_error_high) {
+                pid.best_error = current_error;
+                pid.dp[2] *= 1.1;
+                pid.d_param_error_high = true;
+                pid.train_p_param = true;
+                pid.train_d_param = false;
+              } else if (current_error >= pid.best_error && !pid.d_param_error_high) {
+                pid.Kd_ += pid.dp[2];
+                pid.dp[2] *= 0.9;
+                pid.d_param_error_high = true;
+                pid.train_p_param = true;
+                pid.train_d_param = false;
+              } else if (current_error < pid.best_error && pid.d_param_error_high) {
+                pid.best_error = current_error;
+                pid.dp[2] *= 1.1;
+                pid.train_p_param = true;
+                pid.train_d_param = false;
+              } else if (current_error >= pid.best_error && pid.d_param_error_high){
+                pid.Kd_ -= 2*pid.dp[2];
+
+                pid.d_param_error_high = false;
+              }
+            }
+          } */
+
+          // twiddle
+          /*
+
+          double threshold = 0.00001;
+          while (sumDp > threshold) {
+            for (int i = 0; i<pid.dp.size(); i++) {
+              cout << pid.dp[0] << endl;
+              pid.p[i] += pid.dp[i];
+              setMyParam(pid, i, pid.p[i]);
+              pid.UpdateError(cte);
+              double err = pid.TotalError();
+              //double err = pid.total_error;
+              if (err < best_error) {
+                best_error = err;
+                pid.dp[i] *= 1.1;
+              } else {
+                pid.p[i] -= 2*pid.dp[i];
+                setMyParam(pid, i, pid.p[i]);
+                pid.UpdateError(cte);
+                double err = pid.TotalError();
+                //err = pid.total_error;
+                if (err < best_error) {
+                  best_error = err;
+                  pid.dp[i] *= 1.1;
+                } else {
+                  pid.p[i] += pid.dp[i];
+                  setMyParam(pid, i, pid.p[i]);
+                  pid.dp[i] *= 0.9;
+
+                }
+              }
+            }
+            sumDp = pid.dp[0] + pid.dp[1] + pid.dp[2];
+          }
+          */
+
+          std::cout << pid.Kp_ << " p val" << std::endl;
+          //std::cout << pid.p[0] << "ss p val" << std::endl;
+          std::cout << pid.Ki_ << " i val" << std::endl;
+          //std::cout << pid.p[1] << "ss p val" << std::endl;
+          std::cout << pid.Kd_ << " d val" << std::endl;
+          //std::cout << pid.p[2] << "ss p val" << std::endl;
+
+          if (pid.TotalError() <-1) {
+            steer_value = 1;
+          } else if (pid.TotalError()>1) {
+            steer_value = -1;
+          } else {
+            steer_value = -1*pid.TotalError();
+          }
+
+
           // DEBUG
           std::cout << "CTE: " << cte << " Steering Value: " << steer_value << std::endl;
+
 
           json msgJson;
           msgJson["steering_angle"] = steer_value;
